@@ -1,197 +1,116 @@
-# Kost Area — Platform Manajemen dan Booking Kos
+# Kost Area: Platform Manajemen dan Booking Kos
 
-Kost Area adalah aplikasi web manajemen dan booking kos yang dibangun dengan **Laravel**, **Blade**, dan **Tailwind CSS**. Proyek ini merupakan tugas mata kuliah **PBO2**, dengan fokus pada perancangan dan implementasi **relasi antar tabel database** menggunakan Eloquent ORM. Studi kasusnya: satu pemilik mengelola dua kos, **Kost Area Putra** dan **Kost Area Putri**.
+Kost Area adalah aplikasi web manajemen dan booking kos yang dibangun dengan **Laravel** dan **Blade**. Proyek ini merupakan tugas mata kuliah **PBO2**, dengan fokus pada perancangan dan implementasi **relasi antar tabel database** menggunakan Eloquent ORM.
 
-## Fitur
+## Fitur Database
 
-- Pemilik dapat mendaftarkan lebih dari satu kos (properti), masing-masing dengan kamarnya sendiri
-- Kos khusus putra atau khusus putri (tidak ada kos campur), dan penghuni hanya dapat memesan kos yang sesuai jenis kelaminnya
-- Kamar dengan data lantai, ukuran, harga sewa harian, harga sewa bulanan, dan status operasional:
-  Aktif (Available) atau Perbaikan (Maintenance)
-- Ketersediaan kamar dihitung dari tanggal booking, bukan dari satu kolom status
-- Fasilitas kamar (AC, kamar mandi dalam, Wi-Fi, kasur) dan fasilitas kos (parkir, dapur bersama, laundry, CCTV) yang dipakai bersama melalui daftar fasilitas
-- Foto untuk kos, kamar, dan laporan kerusakan
-- Booking kamar dengan sewa harian atau bulanan; harga saat booking disimpan sehingga perubahan harga tidak memengaruhi booking lama
-- Booking `pending` yang tidak dibayar dalam batas waktu otomatis dibatalkan
-- Perpanjangan sewa, check-in, dan check-out aktual
-- Penagihan otomatis: sewa bulanan ditagih dengan deposit dan satu pembayaran sewa per bulan; sewa harian ditagih satu kali tanpa deposit
-- Pembayaran tunai, transfer bank, atau QRIS dengan unggah bukti bayar dan verifikasi pemilik; status:
-  Belum Dibayar (Unpaid), Menunggu Verifikasi (Waiting Verification), Lunas (Paid), dan Terlambat (Overdue)
-- Denda keterlambatan dan pengembalian deposit (penuh atau dipotong) dicatat sebagai pembayaran tersendiri
-- Laporan kerusakan dari penghuni (AC rusak, pipa bocor) lengkap dengan prioritas, foto, dan status penanganannya
-- Profil penghuni berisi jenis kelamin, nomor telepon, pekerjaan, dan kontak darurat
-- Akses berbasis peran: `admin` mengelola seluruh platform, `owner` mengelola properti dan kamar miliknya, `tenant` melakukan booking kamar dan melaporkan masalah
+- Pemilik (`users`) dapat memiliki lebih dari satu kost
+- Setiap kost memiliki banyak kamar, dengan tipe `putra`, `putri`, atau `campur`
+- Kamar memiliki harga sewa per bulan dan status `available`, `occupied`, atau `maintenance`
+- Fasilitas dipakai bersama oleh banyak kamar (many-to-many lewat tabel `facility_room`)
+- Penyewa (`tenants`) dapat melakukan booking kamar
+- Booking memiliki tanggal mulai, tanggal selesai, dan status `pending`, `active`, `finished`, atau `cancelled`
+- Setiap booking memiliki pembayaran per bulan dengan metode `cash`, `transfer`, atau `ewallet`
 
 ## Desain Database
 
-Skema lengkap dan seluruh relasi didokumentasikan dengan diagram Mermaid di
-[`docs/database/erd.md`](docs/database/erd.md).
+Penjelasan relasi lengkap ada di [`docs/erd.md`](docs/erd.md).
 
 ```mermaid
 erDiagram
+    USERS ||--o{ KOSTS : "memiliki"
+    KOSTS ||--o{ ROOMS : "punya"
+    ROOMS }o--o{ FACILITIES : "facility_room"
+    ROOMS ||--o{ BOOKINGS : "dipesan"
+    TENANTS ||--o{ BOOKINGS : "melakukan"
+    BOOKINGS ||--o{ PAYMENTS : "dibayar lewat"
+
     USERS {
         bigint id PK
         string name
         string email
-        string password
-        enum role "admin, owner, tenant"
     }
-    PROFILES {
+    KOSTS {
         bigint id PK
-        bigint user_id FK "unique"
-        enum gender "male, female"
-        string phone
-        text address
-        string occupation
-        string emergency_contact
-        string avatar
-    }
-    PROPERTIES {
-        bigint id PK
-        bigint owner_id FK
+        bigint user_id FK
         string name
-        text address
+        string address
         string city
-        enum gender_type "male, female"
         text description
-        datetime deleted_at "nullable, soft delete"
     }
     ROOMS {
         bigint id PK
-        bigint property_id FK
-        string room_number "unique per property"
-        int floor
-        decimal size_m2
-        decimal price_per_day
-        decimal price_per_month
-        enum status "available, maintenance"
-        datetime deleted_at "nullable, soft delete"
+        bigint kost_id FK
+        string room_number
+        enum type
+        int price_per_month
+        enum status
     }
     FACILITIES {
         bigint id PK
         string name
-        enum scope "room, property"
     }
     FACILITY_ROOM {
-        bigint facility_id PK, FK
-        bigint room_id PK, FK
-    }
-    FACILITY_PROPERTY {
-        bigint facility_id PK, FK
-        bigint property_id PK, FK
-    }
-    IMAGES {
         bigint id PK
-        string imageable_type "Property, Room, MaintenanceRequest"
-        bigint imageable_id
-        string path
-        boolean is_cover
-        int sort_order
+        bigint room_id FK
+        bigint facility_id FK
+    }
+    TENANTS {
+        bigint id PK
+        string name
+        string phone
+        string id_number
+        string occupation
     }
     BOOKINGS {
         bigint id PK
-        bigint tenant_id FK
         bigint room_id FK
-        bigint previous_booking_id FK "nullable, perpanjangan"
-        string code
-        enum rental_type "daily, monthly"
+        bigint tenant_id FK
         date start_date
         date end_date
-        int duration "hari atau bulan sesuai rental_type"
-        decimal price_per_unit "tarif saat booking"
-        decimal deposit_amount "0 untuk sewa harian"
-        decimal total_price
-        datetime expires_at "nullable, batas bayar saat pending"
-        datetime checked_in_at "nullable"
-        datetime checked_out_at "nullable"
-        enum status "pending, confirmed, active, completed, cancelled"
+        enum status
     }
     PAYMENTS {
         bigint id PK
         bigint booking_id FK
-        bigint verified_by FK "nullable, users"
-        enum type "deposit, rent, late_fee, refund"
-        decimal amount
-        date due_date
-        enum method "cash, transfer, qris, nullable"
-        enum status "unpaid, waiting_verification, paid, overdue"
-        string proof_path "nullable"
-        text notes "nullable"
-        datetime paid_at "nullable"
-        datetime verified_at "nullable"
+        int amount
+        string period_month
+        date paid_at
+        enum method
+        enum status
     }
-    MAINTENANCE_REQUESTS {
-        bigint id PK
-        bigint room_id FK
-        bigint tenant_id FK
-        string title
-        text description
-        enum priority "low, medium, high, urgent"
-        enum status "open, in_progress, resolved"
-        datetime resolved_at "nullable"
-    }
-
-    USERS ||--o| PROFILES : "has one"
-    USERS ||--o{ PROPERTIES : owns
-    PROPERTIES ||--o{ ROOMS : has
-    ROOMS ||--o{ FACILITY_ROOM : equipped
-    FACILITIES ||--o{ FACILITY_ROOM : "installed in"
-    PROPERTIES ||--o{ FACILITY_PROPERTY : provides
-    FACILITIES ||--o{ FACILITY_PROPERTY : "offered by"
-    PROPERTIES ||--o{ IMAGES : "has photos"
-    ROOMS ||--o{ IMAGES : "has photos"
-    MAINTENANCE_REQUESTS ||--o{ IMAGES : "has photos"
-    USERS ||--o{ BOOKINGS : "makes (tenant)"
-    ROOMS ||--o{ BOOKINGS : "is booked in"
-    BOOKINGS ||--o| BOOKINGS : "extended by"
-    BOOKINGS ||--o{ PAYMENTS : "billed by"
-    USERS ||--o{ PAYMENTS : "verifies"
-    USERS ||--o{ MAINTENANCE_REQUESTS : reports
-    ROOMS ||--o{ MAINTENANCE_REQUESTS : "has issue"
 ```
 
 ### Relasi yang Dicakup
 
 | Jenis | Contoh |
 |---|---|
-| One-to-One | `User` ↔ `Profile` |
-| One-to-Many | `User` (owner) → `Property`, `Property` → `Room`, `Room` → `Booking`, `Booking` → `Payment`, `Room` → `MaintenanceRequest`, `User` (tenant) → `MaintenanceRequest`, `User` (verifikator) → `Payment` |
-| Many-to-Many | `Room` ↔ `Facility` (`facility_room`), `Property` ↔ `Facility` (`facility_property`) |
-| Many-to-Many dengan data pivot | `User` (tenant) ↔ `Room` melalui `bookings` (`rental_type`, `start_date`, `end_date`, `duration`, `price_per_unit`, `deposit_amount`, `status`) |
-| Has-Many-Through | `Property` → `Booking` melalui `Room`, `User` (owner) → `Room` melalui `Property` |
-| Polymorphic One-to-Many | `Image` milik `Property`, `Room`, atau `MaintenanceRequest` (`imageable_type`, `imageable_id`) |
-| Self-referencing | `Booking` → `Booking` lewat `previous_booking_id` (perpanjangan sewa) |
+| One-to-Many | `User` → `Kost`, `Kost` → `Room`, `Room` → `Booking`, `Tenant` → `Booking`, `Booking` → `Payment` |
+| Many-to-Many | `Room` ↔ `Facility` (tabel pivot `facility_room`) |
 
 ### Aturan Bisnis
 
-- Jenis kos (`properties.gender_type`) hanya `male` atau `female`, dan `room_number` unik dalam satu kos.
-- Penghuni wajib melengkapi profil sebelum booking, dan hanya boleh memesan kamar di kos yang `gender_type`-nya sama dengan `profiles.gender` miliknya.
-- `rooms.status` hanya `available` atau `maintenance`. Kamar dianggap kosong pada suatu tanggal jika `available` dan tidak ada booking aktif (`pending`, `confirmed`, `active`) yang periodenya beririsan.
-- Sebuah kamar hanya boleh memiliki satu booking aktif pada periode waktu yang sama.
-- `bookings.rental_type` adalah `daily` atau `monthly`; `duration` dihitung dalam hari untuk `daily` dan bulan untuk `monthly`.
-- Saat booking dibuat, tarif kamar disalin ke `bookings.price_per_unit`, lalu `total_price` = `price_per_unit` × `duration` dan `end_date` = `start_date` + `duration` (hari atau bulan).
-- Sewa bulanan: sistem membuat satu pembayaran `deposit` dan satu pembayaran `rent` per bulan, masing-masing dengan `due_date` sendiri.
-- Sewa harian: tanpa deposit; sistem membuat satu pembayaran `rent` senilai `total_price` yang jatuh tempo pada `start_date`.
-- Untuk transfer dan QRIS, penghuni mengunggah bukti bayar sehingga status menjadi `waiting_verification`; setelah diverifikasi pemilik, status menjadi `paid`. Pembayaran tunai dapat langsung dicatat `paid` oleh pemilik.
-- Pembayaran berubah menjadi `overdue` jika masih `unpaid` setelah melewati `due_date`. Denda keterlambatan (opsional, besarnya dari konfigurasi) dicatat sebagai pembayaran `late_fee`.
-- Booking `pending` otomatis menjadi `cancelled` jika tidak dibayar sebelum `expires_at` (misalnya 24 jam setelah dibuat).
-- Booking menjadi `active` saat check-in dan `completed` saat check-out. Perpanjangan dibuat sebagai booking baru dengan `previous_booking_id` menunjuk booking sebelumnya.
-- Setelah booking `completed`, deposit dikembalikan lewat pembayaran `refund`; jika dipotong, alasannya dicatat di `payments.notes`.
-- Penghuni hanya dapat membuat laporan kerusakan untuk kamar yang sedang ia sewa.
-- Pemilik hanya dapat mengelola properti dan kamar yang ia miliki. Properti dan kamar memakai *soft delete* agar riwayat booking dan pembayaran tetap utuh.
+- Satu pemilik dapat memiliki banyak kost, dan satu kost dapat memiliki banyak kamar.
+- `room_number` unik di dalam satu kost.
+- `rooms.type` bernilai `putra`, `putri`, atau `campur`. `rooms.status` bernilai `available`, `occupied`, atau `maintenance`.
+- Satu kamar dapat dipesan berkali-kali pada periode berbeda, dan satu penyewa dapat memiliki banyak booking.
+- `bookings.status` bernilai `pending`, `active`, `finished`, atau `cancelled`. `end_date` boleh kosong untuk sewa yang belum ditentukan akhirnya.
+- Pembayaran dicatat per bulan memakai `payments.period_month` berformat `YYYY-MM`.
+- `payments.status` bernilai `unpaid` atau `paid`. Kolom `paid_at` terisi saat pembayaran lunas.
+- `tenants.id_number` dan `facilities.name` bersifat unik.
+- Semua foreign key memakai `cascadeOnDelete`: menghapus induk ikut menghapus data turunannya.
 
 ## Teknologi yang Digunakan
 
 - PHP 8.3+ dan Laravel
 - Template Blade
-- Tailwind CSS (melalui Vite)
 - MySQL atau SQLite
 
 ## Memulai
 
 ```bash
 # Clone repository
-git clone http://github.com/Luchyana-Desi/laravel5d
+git clone https://github.com/Luchyana-Desi/laravel5d
 cd laravel5d
 
 # Install dependensi
@@ -202,18 +121,16 @@ npm install
 cp .env.example .env
 php artisan key:generate
 
-# Buat skema database dan isi data fasilitas serta dua kos contoh (putra & putri)
-php artisan migrate --seed
+# Buat skema database dan isi data contoh
+php artisan migrate:fresh --seed
 
 # Jalankan server pengembangan
-npm run dev
 php artisan serve
-
-# (Opsional) Jalankan scheduler untuk pembatalan otomatis dan penandaan pembayaran terlambat
-php artisan schedule:work
 ```
 
 Lalu buka <http://localhost:8000>.
+
+Seeder (`KostAreaSeeder`) mengisi data contoh: 1 pemilik, 6 fasilitas, 2 kost, 10 kamar, 6 penyewa, 6 booking, dan 18 pembayaran.
 
 ## Struktur Proyek
 
@@ -221,28 +138,24 @@ Lalu buka <http://localhost:8000>.
 app/Models/        Model Eloquent dan relasinya
 database/
   migrations/      Definisi tabel
-  factories/       Pembuat data palsu
-  seeders/         Data fasilitas, kos putra & putri, dan data contoh
-resources/views/   Template Blade
+  factories/       Pembuat data contoh
+  seeders/         KostAreaSeeder dan DatabaseSeeder
 docs/
-  database/        Dokumentasi ERD dan relasi
+  erd.md           Dokumentasi ERD dan relasi
+  progress/        Laporan progres per fase
 ```
 
 ## Roadmap
 
 - [x] Desain dan dokumentasi database
-- [ ] Migration, model, factory, dan seeder
+- [x] Migration, model, factory, dan seeder
+- [ ] CRUD dengan template AdminLTE (Assignment 2)
 - [ ] Autentikasi dan akses berbasis peran
-- [ ] Pengelolaan properti, kamar, fasilitas, dan foto
-- [ ] Booking kamar harian/bulanan dengan pengecekan jenis kelamin dan ketersediaan
-- [ ] Penagihan otomatis, pembayaran, dan verifikasi bukti bayar
-- [ ] Check-in, check-out, perpanjangan, dan pengembalian deposit
-- [ ] Scheduler pembatalan booking dan penandaan pembayaran terlambat
-- [ ] Laporan kerusakan
+- [ ] Controller, route, dan tampilan Kost Area
 
 ## Penulis
 
-Luchyana Desi Safitri — NPM 2410010230
+Luchyana Desi Safitri, NPM 2410010230
 
 ## Lisensi
 
