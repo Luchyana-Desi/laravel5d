@@ -11,7 +11,7 @@ class Kost extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'name', 'address', 'city', 'description'];
+    protected $fillable = ['user_id', 'name', 'type', 'address', 'city', 'description'];
 
     // Kost dimiliki satu user (pemilik)
     public function owner(): BelongsTo

@@ -12,7 +12,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('kost_id')->constrained()->cascadeOnDelete();
             $table->string('room_number');
-            $table->enum('type', ['putra', 'putri', 'campur'])->default('campur');
+            $table->unsignedTinyInteger('floor')->default(1);
+            $table->decimal('size_m2', 5, 1)->default(9);
+            $table->unsignedInteger('price_per_day');
             $table->unsignedInteger('price_per_month');
             $table->enum('status', ['available', 'occupied', 'maintenance'])->default('available');
             $table->timestamps();

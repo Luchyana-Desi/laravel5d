@@ -10,8 +10,10 @@ return new class extends Migration
     {
         Schema::create('kosts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete(); // pemilik kost
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('name');
+            // kost khusus putra atau khusus putri (tidak ada campur)
+            $table->enum('type', ['putra', 'putri']);
             $table->string('address');
             $table->string('city');
             $table->text('description')->nullable();

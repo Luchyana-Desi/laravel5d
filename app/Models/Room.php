@@ -12,8 +12,8 @@ class Room extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['kost_id', 'room_number', 'type', 'price_per_month', 'status'];
-
+    protected $fillable = ['kost_id', 'room_number', 'floor', 'size_m2', 'price_per_day', 'price_per_month', 'status'];
+    
     public function kost(): BelongsTo
     {
         return $this->belongsTo(Kost::class);

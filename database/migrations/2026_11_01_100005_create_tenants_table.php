@@ -11,9 +11,11 @@ return new class extends Migration
         Schema::create('tenants', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('phone', 20);
-            $table->string('id_number', 20)->unique(); // NIK
-            $table->string('occupation')->nullable();
+            // dipakai untuk mencocokkan penyewa dengan jenis kost
+            $table->enum('gender', ['laki-laki', 'perempuan']);
+            $table->string('phone');
+            $table->string('id_number')->unique();
+            $table->string('occupation');
             $table->timestamps();
         });
     }

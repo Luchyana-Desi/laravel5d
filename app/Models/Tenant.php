@@ -10,7 +10,7 @@ class Tenant extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'phone', 'id_number', 'occupation'];
+    protected $fillable = ['name', 'gender', 'phone', 'id_number', 'occupation'];
 
     public function bookings(): HasMany
     {

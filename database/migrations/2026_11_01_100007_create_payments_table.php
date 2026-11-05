@@ -11,11 +11,17 @@ return new class extends Migration
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('booking_id')->constrained()->cascadeOnDelete();
+            // pemilik yang memverifikasi pembayaran
+            $table->foreignId('verified_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->enum('type', ['deposit', 'rent', 'late_fee', 'refund'])->default('rent');
             $table->unsignedInteger('amount');
-            $table->string('period_month', 7); // format: 2026-11
-            $table->date('paid_at')->nullable();
-            $table->enum('method', ['cash', 'transfer', 'ewallet'])->default('transfer');
-            $table->enum('status', ['unpaid', 'paid'])->default('unpaid');
+            $table->date('due_date');
+            $table->enum('method', ['cash', 'transfer', 'qris'])->nullable();
+            $table->enum('status', ['unpaid', 'waiting_verification', 'paid', 'overdue'])->default('unpaid');
+            $table->string('proof_path')->nullable();
+            $table->text('notes')->nullable();
+            $table->dateTime('paid_at')->nullable();
+            $table->dateTime('verified_at')->nullable();
             $table->timestamps();
         });
     }

@@ -12,6 +12,7 @@ class KostFactory extends Factory
         return [
             'user_id' => User::factory(),
             'name' => 'Kost ' . fake()->lastName(),
+            'type' => fake()->randomElement(['putra', 'putri']),
             'address' => fake()->streetAddress(),
             'city' => fake()->randomElement(['Banjarmasin', 'Banjarbaru', 'Martapura']),
             'description' => fake()->sentence(12),

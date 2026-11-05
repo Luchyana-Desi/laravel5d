@@ -9,15 +9,12 @@ class PaymentFactory extends Factory
 {
     public function definition(): array
     {
-        $paid = fake()->boolean(70);
-
         return [
             'booking_id' => Booking::factory(),
+            'type' => 'rent',
             'amount' => fake()->randomElement([500000, 650000, 800000, 1000000]),
-            'period_month' => fake()->dateTimeBetween('-6 months', 'now')->format('Y-m'),
-            'paid_at' => $paid ? fake()->dateTimeBetween('-6 months', 'now')->format('Y-m-d') : null,
-            'method' => fake()->randomElement(['cash', 'transfer', 'ewallet']),
-            'status' => $paid ? 'paid' : 'unpaid',
+            'due_date' => fake()->dateTimeBetween('-3 months', '+1 month')->format('Y-m-d'),
+            'status' => 'unpaid',
         ];
     }
 }
