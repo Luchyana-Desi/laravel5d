@@ -1,104 +1,50 @@
 # Kost Area: Platform Manajemen dan Booking Kos
 
-Kost Area adalah aplikasi web manajemen dan booking kos yang dibangun dengan **Laravel** dan **Blade**. Proyek ini merupakan tugas mata kuliah **PBO2**, dengan fokus pada perancangan dan implementasi **relasi antar tabel database** menggunakan Eloquent ORM.
+Kost Area adalah aplikasi web manajemen dan booking kos yang dibangun dengan **Laravel** dan **Blade**. Proyek ini merupakan tugas mata kuliah **PBO2**, dengan fokus pada perancangan dan implementasi **relasi antar tabel database** menggunakan Eloquent ORM. Studi kasusnya: satu pemilik mengelola dua kost, **Kost Area Putra** dan **Kost Area Putri**.
 
-## Fitur Database
+## Fitur yang Sudah Ada
 
-- Pemilik (`users`) dapat memiliki lebih dari satu kost
-- Setiap kost memiliki banyak kamar, dengan tipe `putra`, `putri`, atau `campur`
-- Kamar memiliki harga sewa per bulan dan status `available`, `occupied`, atau `maintenance`
-- Fasilitas dipakai bersama oleh banyak kamar (many-to-many lewat tabel `facility_room`)
-- Penyewa (`tenants`) dapat melakukan booking kamar
-- Booking memiliki tanggal mulai, tanggal selesai, dan status `pending`, `active`, `finished`, atau `cancelled`
-- Setiap booking memiliki pembayaran per bulan dengan metode `cash`, `transfer`, atau `ewallet`
+- Pemilik dapat memiliki lebih dari satu kost
+- Kost khusus putra atau khusus putri (tidak ada kost campur)
+- Kamar dengan lantai, ukuran, harga sewa harian, harga sewa bulanan, dan status (`available`, `occupied`, `maintenance`)
+- Fasilitas kamar (AC, WiFi, kamar mandi dalam, kasur, lemari) yang dipakai bersama oleh banyak kamar
+- Data penyewa beserta jenis kelamin
+- Booking kamar dengan sewa harian atau bulanan; tarif saat booking disimpan sehingga perubahan harga tidak memengaruhi booking lama
+- Perpanjangan sewa (booking menunjuk booking sebelumnya), waktu check-in dan check-out
+- Pembayaran bertipe deposit, sewa, denda, dan pengembalian deposit, dengan jatuh tempo
+- Metode bayar tunai, transfer, atau QRIS, dengan bukti bayar dan verifikasi oleh pemilik
+- Status pembayaran: Belum Dibayar, Menunggu Verifikasi, Lunas, dan Terlambat
+- Halaman web untuk menampilkan data: Dashboard, Kost, Kamar, Fasilitas, Penyewa, Booking, dan Pembayaran
 
 ## Desain Database
 
-Penjelasan relasi lengkap ada di [`docs/erd.md`](docs/erd.md).
-
-```mermaid
-erDiagram
-    USERS ||--o{ KOSTS : "memiliki"
-    KOSTS ||--o{ ROOMS : "punya"
-    ROOMS }o--o{ FACILITIES : "facility_room"
-    ROOMS ||--o{ BOOKINGS : "dipesan"
-    TENANTS ||--o{ BOOKINGS : "melakukan"
-    BOOKINGS ||--o{ PAYMENTS : "dibayar lewat"
-
-    USERS {
-        bigint id PK
-        string name
-        string email
-    }
-    KOSTS {
-        bigint id PK
-        bigint user_id FK
-        string name
-        string address
-        string city
-        text description
-    }
-    ROOMS {
-        bigint id PK
-        bigint kost_id FK
-        string room_number
-        enum type
-        int price_per_month
-        enum status
-    }
-    FACILITIES {
-        bigint id PK
-        string name
-    }
-    FACILITY_ROOM {
-        bigint id PK
-        bigint room_id FK
-        bigint facility_id FK
-    }
-    TENANTS {
-        bigint id PK
-        string name
-        string phone
-        string id_number
-        string occupation
-    }
-    BOOKINGS {
-        bigint id PK
-        bigint room_id FK
-        bigint tenant_id FK
-        date start_date
-        date end_date
-        enum status
-    }
-    PAYMENTS {
-        bigint id PK
-        bigint booking_id FK
-        int amount
-        string period_month
-        date paid_at
-        enum method
-        enum status
-    }
-```
+Diagram ERD lengkap (semua tabel dan kolom, termasuk yang masih rencana), tabel status implementasi, dan penjelasan relasi ada di [`docs/erd.md`](docs/erd.md).
 
 ### Relasi yang Dicakup
 
 | Jenis | Contoh |
 |---|---|
-| One-to-Many | `User` → `Kost`, `Kost` → `Room`, `Room` → `Booking`, `Tenant` → `Booking`, `Booking` → `Payment` |
+| One-to-Many | `User` → `Kost`, `Kost` → `Room`, `Room` → `Booking`, `Tenant` → `Booking`, `Booking` → `Payment`, `User` (verifikator) → `Payment` |
 | Many-to-Many | `Room` ↔ `Facility` (tabel pivot `facility_room`) |
+| Self-referencing | `Booking` → `Booking` lewat `previous_booking_id` (perpanjangan sewa) |
 
 ### Aturan Bisnis
 
-- Satu pemilik dapat memiliki banyak kost, dan satu kost dapat memiliki banyak kamar.
-- `room_number` unik di dalam satu kost.
-- `rooms.type` bernilai `putra`, `putri`, atau `campur`. `rooms.status` bernilai `available`, `occupied`, atau `maintenance`.
-- Satu kamar dapat dipesan berkali-kali pada periode berbeda, dan satu penyewa dapat memiliki banyak booking.
-- `bookings.status` bernilai `pending`, `active`, `finished`, atau `cancelled`. `end_date` boleh kosong untuk sewa yang belum ditentukan akhirnya.
-- Pembayaran dicatat per bulan memakai `payments.period_month` berformat `YYYY-MM`.
-- `payments.status` bernilai `unpaid` atau `paid`. Kolom `paid_at` terisi saat pembayaran lunas.
-- `tenants.id_number` dan `facilities.name` bersifat unik.
-- Semua foreign key memakai `cascadeOnDelete`: menghapus induk ikut menghapus data turunannya.
+- Jenis kost (`kosts.type`) hanya `putra` atau `putri`. Semua kamar di sebuah kost mengikuti jenis kost-nya.
+- Jenis kelamin penyewa (`tenants.gender`) dicatat agar penyewa hanya memesan kost yang sesuai. Data contoh sudah mengikuti aturan ini. Pemeriksaan otomatis saat membuat booking menyusul bersama form booking.
+- `room_number` unik di dalam satu kost. `tenants.id_number` dan `facilities.name` unik.
+- Satu kamar dapat dipesan berkali-kali pada periode berbeda. Satu penyewa dapat memiliki banyak booking.
+- `bookings.rental_type` adalah `daily` atau `monthly`. `duration` dihitung dalam hari untuk `daily` dan bulan untuk `monthly`.
+- Saat booking dibuat, tarif kamar disalin ke `bookings.price_per_unit`, lalu `total_price` = `price_per_unit` x `duration` dan `end_date` = `start_date` + `duration`.
+- Sewa bulanan: ada satu pembayaran `deposit` dan satu pembayaran `rent` per bulan, masing-masing dengan `due_date` sendiri.
+- Sewa harian: tanpa deposit (`deposit_amount` = 0), dan hanya satu pembayaran `rent` senilai `total_price`.
+- Untuk transfer dan QRIS, penyewa mengunggah bukti bayar sehingga status menjadi `waiting_verification`. Setelah diverifikasi pemilik (`verified_by`), status menjadi `paid`. Pembayaran tunai dapat langsung dicatat `paid` oleh pemilik.
+- Pembayaran `unpaid` yang melewati `due_date` berstatus `overdue`. Denda keterlambatan dicatat sebagai pembayaran bertipe `late_fee`.
+- Pengembalian deposit dicatat sebagai pembayaran bertipe `refund`. Jika dipotong, alasannya dicatat di `payments.notes`.
+- Perpanjangan sewa dibuat sebagai booking baru dengan `previous_booking_id` menunjuk booking sebelumnya.
+- Semua foreign key memakai `cascadeOnDelete`, kecuali `previous_booking_id` dan `verified_by` yang menjadi `null` saat induknya dihapus.
+
+Catatan: aturan seperti pembatalan otomatis booking yang tidak dibayar, penagihan otomatis, dan penandaan keterlambatan baru berupa rancangan struktur data. Prosesnya belum diprogram dan dikerjakan di tahap berikutnya.
 
 ## Teknologi yang Digunakan
 
@@ -115,7 +61,6 @@ cd laravel5d
 
 # Install dependensi
 composer install
-npm install
 
 # Atur environment
 cp .env.example .env
@@ -130,28 +75,46 @@ php artisan serve
 
 Lalu buka <http://localhost:8000>.
 
-Seeder (`KostAreaSeeder`) mengisi data contoh: 1 pemilik, 6 fasilitas, 2 kost, 10 kamar, 6 penyewa, 6 booking, dan 18 pembayaran.
+Seeder (`KostAreaSeeder`) mengisi data contoh: 1 pemilik, 5 fasilitas, 2 kost (putra dan putri), 10 kamar, 6 penyewa (sesuai jenis kost), 6 booking (4 bulanan, 2 harian), dan 20 pembayaran dengan berbagai status.
+
+## Halaman yang Tersedia
+
+| Alamat | Isi |
+|---|---|
+| `/` | Dashboard ringkasan |
+| `/kosts`, `/kosts/{id}` | Daftar dan detail kost |
+| `/rooms`, `/rooms/{id}` | Daftar dan detail kamar |
+| `/facilities`, `/facilities/{id}` | Daftar dan detail fasilitas |
+| `/tenants`, `/tenants/{id}` | Daftar dan detail penyewa |
+| `/bookings`, `/bookings/{id}` | Daftar dan detail booking |
+| `/payments`, `/payments/{id}` | Daftar dan detail pembayaran |
 
 ## Struktur Proyek
 
 ```
-app/Models/        Model Eloquent dan relasinya
+app/Http/Controllers/   Controller (menampilkan data)
+app/Models/             Model Eloquent dan relasinya
 database/
-  migrations/      Definisi tabel
-  factories/       Pembuat data contoh
-  seeders/         KostAreaSeeder dan DatabaseSeeder
+  migrations/           Definisi tabel
+  factories/            Pembuat data contoh
+  seeders/              KostAreaSeeder dan DatabaseSeeder
+resources/views/        Template Blade (layout, dashboard, dan halaman per tabel)
+routes/web.php          Daftar route
 docs/
-  erd.md           Dokumentasi ERD dan relasi
-  progress/        Laporan progres per fase
+  erd.md                Dokumentasi ERD dan relasi
+  progress/             Laporan progres per fase
 ```
 
 ## Roadmap
 
 - [x] Desain dan dokumentasi database
 - [x] Migration, model, factory, dan seeder
+- [x] Controller, route, dan tampilan data (Assignment 1)
 - [ ] CRUD dengan template AdminLTE (Assignment 2)
-- [ ] Autentikasi dan akses berbasis peran
-- [ ] Controller, route, dan tampilan Kost Area
+- [ ] Fasilitas kost dan foto (kost, kamar)
+- [ ] Laporan kerusakan
+- [ ] Profil penghuni, autentikasi, dan akses berbasis peran
+- [ ] Proses otomatis: pembatalan booking, penagihan, dan penandaan pembayaran terlambat
 
 ## Penulis
 
